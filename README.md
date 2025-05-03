@@ -40,11 +40,9 @@ By the end, you’ll be able to:
 
 ---
 
-################################################################################
 ## Step A: XRDP & TigerVNC Setup
 
 We’ll first experiment with the default, system-wide TigerVNC on display `:1`, see why it fails, then switch to a per-user service on `:2`. Finally we’ll configure XRDP to use Xorg.
-################################################################################
 
 ### A1. Install required packages
 
@@ -94,11 +92,11 @@ chmod +x ~/.vnc/xstartup
 echo ":2=$USER" | sudo tee /etc/tigervnc/vncserver.users
 ```
 
-If you really want to experiment on :1, you can still do:
+	If you really want to experiment on :1, you can still do:
 
-```bash
-echo ":1=$USER" | sudo tee /etc/tigervnc/vncserver.users
-```
+	```bash
+	echo ":1=$USER" | sudo tee /etc/tigervnc/vncserver.users
+	```
 
 4. Clean up any leftover locks on both displays:
 
