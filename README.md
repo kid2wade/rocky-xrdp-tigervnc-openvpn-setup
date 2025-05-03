@@ -92,7 +92,7 @@ chmod +x ~/.vnc/xstartup
 echo ":2=$USER" | sudo tee /etc/tigervnc/vncserver.users
 ```
 
-   If you really want to experiment on :1, you can still do:
+   - If you really want to experiment on :1, you can still do:
 
    ```bash
    echo ":1=$USER" | sudo tee /etc/tigervnc/vncserver.users  
