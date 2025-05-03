@@ -202,5 +202,6 @@ sudo systemctl enable --now xrdp xrdp-sesman
 ### A5. Test both VNC & RDP
 
 VNC: connect to your-server:5902 with your VNC password.
+
 RDP: point your RDP client at your-server:3389, log in with your Linux user.
 
