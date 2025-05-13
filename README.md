@@ -55,86 +55,70 @@ Enable & start XRDP:
 
 ```bash
 sudo systemctl enable --now xrdp xrdp-sesman
+ss -tlnp | grep 3389   # verify xrdp is listening on 3389
 ```
 
-### A2. System-wide TigerVNC on display :1 (troubleshoot & disable)
+### A2. Free up an X display
 
-**Note:**  
-   - Display `:0` is already in use by your local GUI (GDM).  
-   - When I ran `vncserver@:1.service`, it consistently failed with:  
-
-     ```
-     Fatal server error:
-     (EE) Cannot establish any listening sockets…
-     ```
-   - Rather than fight stale locks on `:1`, I moved to a free display, `:2`.
-
-1. Create your VNC password:
+By default, GDM (the GNOME Display Manager) holds display :0 (port 5900) and our local GUI session usually takes :1 (port 5901). We can either stop that service or simply pick a higher display number for VNC.
 
 ```bash
-vncpasswd
+# To disable GDM (so :0 and :1 are free for VNC if desired)
+sudo systemctl disable --now gdm.service
+sudo systemctl mask   gdm.service
+
+# (Later, to restore GDM)
+sudo systemctl unmask   gdm.service
+sudo systemctl enable --now gdm.service
 ```
 
-2. Create your VNC startup script (so VNC knows which desktop to launch):
+### A3. Install Xfce & create our VNC startup
+
+1. Install Xfce (or another desktop environment):
+
+```bash
+sudo dnf groupinstall -y "Xfce"
+```
+
+2. As our non-root user ($USER), set up ~/.vnc/xstartup and password:
 
 ```bash
 mkdir -p ~/.vnc
 cat > ~/.vnc/xstartup << 'EOF'
 #!/bin/sh
+[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
 exec startxfce4 &
 EOF
-chmod +x ~/.vnc/xstartup
+chmod 700 ~/.vnc/xstartup
+vncpasswd   # choose a VNC password
 ```
 
-3. Map your user to :2 in /etc/tigervnc/vncserver.users:
+### A4. Map & start TigerVNC on display :N
+
+1. Pick an unused display number:
 
 ```bash
-echo ":2=$USER" | sudo tee /etc/tigervnc/vncserver.users
+DISPLAY=3   # or 2, 4, etc.
 ```
 
-   - If you really want to experiment on :1, you can still do:
-
-   ```bash
-   echo ":1=$USER" | sudo tee /etc/tigervnc/vncserver.users  
-   ```
-
-4. Clean up any leftover locks on both displays:
+2. System-wide service (always-on)
 
 ```bash
-sudo rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 \
-             /tmp/.X2-lock /tmp/.X11-unix/X2
+echo ":${DISPLAY}=$USER" | sudo tee /etc/tigervnc/vncserver.users
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now vncserver@:${DISPLAY}.service
+
+ss -tlnp | grep $((5900+DISPLAY))
+# we should see Xvnc listening on port 5900+N (example: port 5903)
 ```
 
-5. Disable the broken :1 service and enable the working :2 service:
-
-```bash
-sudo systemctl disable --now vncserver@:1.service  
-sudo systemctl enable --now vncserver@:2.service
-```
-
-6. Verify TigerVNC is listening on port 5902:
-
-```bash
-ss -tlnp | grep 5902
-```
-
-### A3. Per-user TigerVNC on spare display :2
-
-1. Enable “linger” so your user-units can run after logout:
+3. Per-user service (starts on user login)
 
 ```bash
 sudo loginctl enable-linger $USER
-```
 
-2. Create the user-unit directory:
-
-```bash
 mkdir -p ~/.config/systemd/user
-```
-
-3. Write the per-user service at ~/.config/systemd/user/vncserver@.service:
-
-```ini
 cat > ~/.config/systemd/user/vncserver@.service << 'EOF'
 [Unit]
 Description=TigerVNC Server for display %i
@@ -149,24 +133,20 @@ ExecStop=/usr/bin/vncserver -kill %i
 [Install]
 WantedBy=default.target
 EOF
-```
 
-4. Reload, enable & start it under your user:
-
-```bash
 systemctl --user daemon-reload
-systemctl --user enable --now vncserver@:2.service
+systemctl --user enable --now vncserver@:${DISPLAY}.service
+
+ss -tlnp | grep $((5900+DISPLAY))
 ```
 
-5. Confirm VNC is listening on port 5902:
+Note:
+If we use the per-user TigerVNC service (~/.config/systemd/user/vncserver@.service), it waits until our graphical-session target is active, so with GDM running, VNC won’t start until we log out of GNOME. To avoid that, either use the system-wide vncserver@.service (runs at boot) or adjust After= in the user unit to default.target.
 
-```bash
-ss -tlnp | grep 5902
-```
 
-### A4. Configure XRDP session types
+### A5. Configure XRDP session types
 
-1. XRDP can offer multiple backends—here Xorg **and** TigerVNC—by (un)commentin sections in `/etc/xrdp/xrdp.ini`. Edit that file so that:
+Edit /etc/xrdp/xrdp.ini and enable the backends we want:
 
 ```ini
 # --- Xorg session (requires xorgxrdp) ---
@@ -186,22 +166,34 @@ username=ask
 password=ask
 port=-1
 ```
+- Only Xorg: comment out the [Xvnc] block
 
-- Only Xorg: comment out the entire [Xvnc] block.
-- Only VNC: comment out the entire [Xorg] block.
-- Both: leave both sections active.
+- Only VNC: comment out the [Xorg] block
 
-💡 Tip: Make sure you have xorgxrdp installed for [Xorg] and tigervnc-server for [Xvnc] before enabling either.
+- Both: leave both sections active
 
-2. Finally, restart and enable XRDP:
+Restart XRDP:
 
 ```bash
-sudo systemctl enable --now xrdp xrdp-sesman
+sudo systemctl restart xrdp
 ```
 
-### A5. Test both VNC & RDP
+### A6. Test both VNC & RDP
 
-VNC: connect to your-server:5902 with your VNC password.
+- VNC:
+In our VNC client, connect to
 
-RDP: point your RDP client at your-server:3389, log in with your Linux user.
+```makefile
+<SERVER_IP_OR_HOSTNAME>:<5900+DISPLAY>
+```
+example: 192.168.0.230:5903 if DISPLAY=3, and enter the VNC password.
 
+- RDP:
+Open Windows Remote Desktop Connection (mstsc) to
+
+```makefile
+<SERVER_IP_OR_HOSTNAME>:3389
+```
+then log in with our Linux username/password.
+
+---
