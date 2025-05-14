@@ -8,7 +8,7 @@ Step-by-step guide to install and configure XRDP, TigerVNC &amp; OpenVPN on Rock
 - [Overview](#overview)  
 - [Prerequisites](#prerequisites)  
 - [Step A: XRDP & TigerVNC Setup](#step-a-xrdp--tigervnc-setup)  
-- [Step B: Harden SSH](#step-b-harden-ssh)  
+- [Stea B: Harden SSH](#step-b-harden-ssh)  
 - [Step C: OpenVPN Server](#step-c-openvpn-server)  
 - [Step D: Generate Client Profile](#step-d-generate-client-profile)  
 - [Step E: Testing & Troubleshooting](#step-e-testing--troubleshooting)  
@@ -195,5 +195,312 @@ Open Windows Remote Desktop Connection (mstsc) to
 <SERVER_IP_OR_HOSTNAME>:3389
 ```
 then log in with our Linux username/password.
+
+---
+
+## Step B: Harden SSH
+
+To lock down SSH, we’ll switch to key-based login only, disable root logins, and (optionally) move SSH off port 22.
+
+### B1. Generate an SSH key pair (if you don’t have one)
+
+On your **local** machine:
+
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+# Accept defaults and enter a passphrase when prompted
+```
+
+### B2. Copy your public key to the server
+
+```bash
+ssh-copy-id -p 22 $USER@<SERVER_IP_OR_HOSTNAME>
+```
+This installs your key in /home/$USER/.ssh/authorized_keys.
+
+### B3. Edit the SSH daemon config
+
+```bash
+sudo vi /etc/ssh/sshd_config
+```
+
+Make these changes (uncomment or add):
+
+```diff
+-Port 22
++Port 2222                   # optional: change SSH port to 2222
+
+ PermitRootLogin no          # disable root SSH logins
+ PasswordAuthentication no   # turn off password-based logins
+ PubkeyAuthentication yes    # enable key-based auth only
+```
+
+Tip: if you changed the port, remember to open it in your firewall:
+
+```bash
+sudo firewall-cmd --permanent --add-port=2222/tcp
+sudo firewall-cmd --reload
+```
+
+### B4. Restart SSHD
+
+```bash
+sudo systemctl restart sshd
+```
+
+### B5. Test your new SSH settings
+
+From your local machine:
+
+```bash
+ssh -p 2222 $USER@<SERVER_IP_OR_HOSTNAME>
+```
+
+You should be prompted for your key’s passphrase, not a system password. If it works, SSH is now hardened.
+
+---
+
+## Step C: OpenVPN Server
+
+We’ll install OpenVPN and Easy-RSA, build our PKI, configure the server, open the firewall, and expose the VPN via DuckDNS + router port-forwarding.
+
+### C1. Install OpenVPN & Easy-RSA
+
+```bash
+sudo dnf install -y epel-release
+sudo dnf install -y openvpn easy-rsa
+```
+
+### C2. Initialize the PKI directory
+
+```bash
+sudo mkdir -p /etc/openvpn/easy-rsa
+sudo cp -r /usr/share/easy-rsa/3/* /etc/openvpn/easy-rsa/
+cd /etc/openvpn/easy-rsa
+sudo ./easyrsa init-pki
+```
+
+### C3. Build CA, server certificate & DH parameters
+
+```bash
+sudo ./easyrsa build-ca nopass
+sudo ./easyrsa gen-req server nopass
+sudo ./easyrsa sign-req server server
+sudo ./easyrsa gen-dh
+```
+
+Files created:
+
+- /etc/openvpn/easy-rsa/pki/ca.crt
+
+- /etc/openvpn/easy-rsa/pki/issued/server.crt
+
+- /etc/openvpn/easy-rsa/pki/private/server.key
+
+- /etc/openvpn/easy-rsa/pki/dh.pem
+
+
+### C4. Configure the OpenVPN server
+
+```bash
+sudo mkdir -p /etc/openvpn/server
+sudo cp /usr/share/doc/openvpn/sample/sample-config-files/server.conf /etc/openvpn/server/server.conf
+```
+
+Edit /etc/openvpn/server/server.conf:
+
+```ini
+port 1194
+proto udp
+dev tun
+
+ca   /etc/openvpn/easy-rsa/pki/ca.crt
+cert /etc/openvpn/easy-rsa/pki/issued/server.crt
+key  /etc/openvpn/easy-rsa/pki/private/server.key
+dh   /etc/openvpn/easy-rsa/pki/dh.pem
+
+server 10.8.0.0 255.255.255.0
+
+push "redirect-gateway def1 bypass-dhcp"
+push "dhcp-option DNS 1.1.1.1"
+push "dhcp-option DNS 8.8.8.8"
+
+keepalive 10 120
+cipher AES-256-CBC
+user nobody
+group nobody
+persist-key
+persist-tun
+
+status openvpn-status.log
+log    openvpn.log
+verb 3
+explicit-exit-notify 1
+```
+
+### C5. Enable IP forwarding & configure firewall
+
+```bash
+echo "net.ipv4.ip_forward=1" | sudo tee /etc/sysctl.d/99-openvpn.conf
+sudo sysctl --system
+
+sudo firewall-cmd --permanent --add-service=openvpn
+sudo firewall-cmd --permanent --add-masquerade
+sudo firewall-cmd --reload
+```
+
+If SELinux is enforcing, relabel:
+
+```bash
+sudo restorecon -Rv /etc/openvpn
+```
+
+### C6. Start the OpenVPN service
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now openvpn-server@server.service
+```
+
+Verify:
+
+```bash
+sudo systemctl status openvpn-server@server.service
+ss -u -lnp | grep 1194
+```
+
+### C7. Expose VPN via DuckDNS & Router Port-Forwarding
+
+1. Register a free DuckDNS hostname
+
+Sign in at https://www.duckdns.org/, create a domain (example: myvpn.duckdns.org).
+
+2. Install the DuckDNS updater on Rocky:
+
+```bash
+sudo dnf install -y curl
+sudo mkdir -p /etc/duckdns
+cat << 'EOF' | sudo tee /etc/duckdns/duck.sh
+#!/usr/bin/env bash
+echo "https://www.duckdns.org/update?domains=YOURDOMAIN&token=YOURTOKEN&ip=" \
+  | curl -k -o /etc/duckdns/duck.log -K -
+EOF
+sudo chmod +x /etc/duckdns/duck.sh
+echo "*/5 * * * * root /etc/duckdns/duck.sh >/dev/null 2>&1" | sudo tee /etc/cron.d/duckdns
+```
+Replace YOURDOMAIN and YOURTOKEN with your DuckDNS values.
+
+3. Configure your router to forward UDP port 1194 → <SERVER_LAN_IP>:1194.
+
+4. Test external reachability (from a different network):
+
+```bash
+# On Windows PowerShell:
+Test-NetConnection -ComputerName myvpn.duckdns.org -Port 1194 -InformationLevel Detailed
+``` 
+
+Clients will now use:
+
+```bash
+remote myvpn.duckdns.org 1194
+```
+
+## Step D: Generate Client Profile
+
+We’ll create and sign a client certificate, gather all necessary files, build a base configuration, then bundle everything into a single .ovpn file.
+
+### D1. Generate & sign the client certificate
+
+```bash
+cd /etc/openvpn/easy-rsa
+sudo ./easyrsa gen-req client1 nopass
+sudo ./easyrsa sign-req client client1
+```
+
+Outputs:
+
+- /etc/openvpn/easy-rsa/pki/issued/client1.crt
+
+- /etc/openvpn/easy-rsa/pki/private/client1.key
+
+### D2. Collect CA, client cert/key & HMAC key
+
+```bash
+mkdir -p ~/client-configs/files
+cp /etc/openvpn/easy-rsa/pki/ca.crt        ~/client-configs/files/
+cp /etc/openvpn/easy-rsa/pki/issued/client1.crt  ~/client-configs/files/
+cp /etc/openvpn/easy-rsa/pki/private/client1.key ~/client-configs/files/
+sudo cp /etc/openvpn/ta.key                     ~/client-configs/files/
+```
+
+If ta.key is missing, generate it:
+
+```bash
+sudo openvpn --genkey --secret /etc/openvpn/ta.key
+```
+
+### D3. Create a base client config
+
+```bash
+cp /usr/share/doc/openvpn/sample/sample-config-files/client.conf ~/client-configs/base.conf
+```
+
+Edit ~/client-configs/base.conf:
+
+```ini
+client
+dev tun
+proto udp
+remote myvpn.duckdns.org 1194
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+
+ca   ca.crt
+cert client1.crt
+key  client1.key
+tls-auth ta.key 1
+
+cipher AES-256-CBC
+verb 3
+keepalive 10 120
+```
+
+### D4. Bundle everything into one .ovpn
+
+```bash
+cat ~/client-configs/base.conf \
+    <(printf '\n<ca>\n') ~/client-configs/files/ca.crt \
+    <(printf '\n</ca>\n<cert>\n') ~/client-configs/files/client1.crt \
+    <(printf '\n</cert>\n<key>\n') ~/client-configs/files/client1.key \
+    <(printf '\n</key>\n<tls-auth>\n') ~/client-configs/files/ta.key \
+    <(printf '\n</tls-auth>\n') \
+  > ~/client-configs/files/client1.ovpn
+```
+
+That produces a single client1.ovpn containing all certificates and keys.
+
+### D5. Test the client connection
+
+On the client machine:
+
+1. Install the OpenVPN client.
+
+2. Copy down client1.ovpn.
+
+3. Run:
+
+```bash
+sudo openvpn --config client1.ovpn
+```
+
+4. Look for “Initialization Sequence Completed.”
+
+5. Verify connectivity:
+
+```bash
+ping 10.8.0.1
+```
 
 ---
