@@ -623,10 +623,10 @@ ssue                       | Symptoms                          | Fix            
 | **XRDP not listening**      | RDP client times out              | `sudo systemctl restart xrdp`<br>`ss -tlnp \| grep 3389`<br>`sudo firewall-cmd --add-service=rdp --reload`                                                     |
 | **VNC “No user configured”**| Service fails with “No user…:N”   | `echo ":N=$USER" \| sudo tee /etc/tigervnc/vncserver.users`<br>`vncpasswd`                                                                                        |
 | **VNC starts only…**        | Per-user unit doesn’t start       | `sudo systemctl enable --now vncserver@:<N>.service`<br>Or change `After=` to `default.target` in your user unit.                                               |
-| **OpenVPN config errors**   | Error opening configuration file  | Ensure `/etc/openvpn/server/` exists and all paths in `server.conf` are absolute (e.g. `ca /etc/openvpn/.../ca.crt`).                                          |
+| **OpenVPN config errors**   | Error opening configuration file  | Ensure `/etc/openvpn/server/` exists and all paths in `server.conf` are absolute (example: `ca /etc/openvpn/.../ca.crt`).                                          |
 | **OpenVPN won’t bind**      | Service exit code 1               | `ss -u -lnp \| grep 1194`<br>`journalctl -u openvpn-server@server -n 20`<br>`sudo firewall-cmd --add-service=openvpn --reload`                                    |
 | **DuckDNS not updating**    | DNS still shows old IP            | `cat /etc/duckdns/duck.log`<br>`/etc/duckdns/duck.sh`<br>Check your `/etc/cron.d/duckdns` syntax.                                                                 |
-| **Locked out of SSH**       | Cannot connect over SSH           | Use console/serial to revert changes in `/etc/ssh/sshd_config` (e.g. `PermitRootLogin no`, custom port).<br>`sudo systemctl restart sshd`                         |
+| **Locked out of SSH**       | Cannot connect over SSH           | Use console/serial to revert changes in `/etc/ssh/sshd_config` (example: `PermitRootLogin no`, custom port).<br>`sudo systemctl restart sshd`                         |
 
 ---
 
