@@ -621,9 +621,9 @@ Test-NetConnection -ComputerName myvpn.duckdns.org -Port 1194
 | **XRDP not listening**  | RDP client times out           | <pre>sudo systemctl restart xrdp<br>ss -tlnp &#124; grep 3389<br>sudo firewall-cmd --add-service=rdp --reload</pre>                                                              |
 | **VNC “No user…”**      | Service fails with “No user…”  | <pre>echo ":N=$USER" &#124; sudo tee /etc/tigervnc/vncserver.users<br>vncpasswd</pre>                                                                                             |
 | **VNC starts only…**    | Per-user unit doesn’t start    | <pre>sudo systemctl enable --now vncserver@:&lt;N&gt;.service</pre><br>Or change `After=` to `default.target` in your user unit.                                                 |
-| **OpenVPN config error**| Error opening configuration    | Ensure `/etc/openvpn/server/` exists and **all** paths in `server.conf` are absolute (e.g. `ca /etc/openvpn/.../ca.crt`).                                                       |
+| **OpenVPN config error**| Error opening configuration    | Ensure `/etc/openvpn/server/` exists and **all** paths in `server.conf` are absolute (example: `ca /etc/openvpn/.../ca.crt`).                                                       |
 | **OpenVPN won’t bind**  | Service exit code 1            | <pre>ss -u -lnp &#124; grep 1194<br>journalctl -u openvpn-server@server -n 20<br>sudo firewall-cmd --add-service=openvpn --reload</pre>                                            |
 | **DuckDNS not updating**| DNS still shows old IP         | <pre>cat /etc/duckdns/duck.log<br>/etc/duckdns/duck.sh</pre><br>Check your `/etc/cron.d/duckdns` syntax.                                                                          |
-| **Locked out of SSH**   | Cannot connect over SSH        | Use console access to revert changes in `/etc/ssh/sshd_config` (e.g. `PermitRootLogin no`, custom port).<br>Then `sudo systemctl restart sshd`.                                 |
+| **Locked out of SSH**   | Cannot connect over SSH        | Use console access to revert changes in `/etc/ssh/sshd_config` (example: `PermitRootLogin no`, custom port).<br>Then `sudo systemctl restart sshd`.                                 |
 
 ---
