@@ -404,6 +404,7 @@ Clients will now use:
 ```bash
 remote myvpn.duckdns.org 1194
 ```
+---
 
 ## Step D: Generate Client Profile
 
@@ -502,5 +503,128 @@ sudo openvpn --config client1.ovpn
 ```bash
 ping 10.8.0.1
 ```
+
+---
+
+## Step E: Testing & Troubleshooting
+
+Once Steps A–D are complete, let’s verify end-to-end functionality and cover quick fixes.
+
+### E1. Verify SSH
+
+```bash
+# From your local machine:
+ssh -p 2222 $USER@<SERVER_IP_OR_HOSTNAME>
+```
+
+- You should get a shell without a password prompt.
+
+- If you’re locked out, use your console or cloud-provider serial access to revert /etc/ssh/sshd_config.
+
+### E2. Test XRDP
+
+1. On Windows, launch Remote Desktop Connection (mstsc).
+
+2. Connect to:
+
+```makefile
+<SERVER_IP_OR_HOSTNAME>:3389
+```
+
+3. Log in with your Linux user.
+
+4. You should land in your Xfce (or GNOME) desktop.
+
+If it fails:
+
+- sudo systemctl status xrdp xrdp-sesman
+
+- Check /var/log/xrdp.log and /var/log/xrdp-sesman.log.
+
+- Ensure port 3389 is open in firewall-cmd --list-ports or --list-services.
+
+### E3. Test TigerVNC
+
+1. On Windows, open your VNC viewer.
+
+2. Connect to:
+
+```makefile
+<SERVER_IP_OR_HOSTNAME>:<5900+DISPLAY>
+```
+
+(example: 10.8.0.1:5903 if DISPLAY=3)
+
+3. Enter the VNC password.
+
+If you see “connection refused”:
+
+- Confirm the VNC service is active:
+
+```bash
+sudo systemctl status vncserver@:<DISPLAY>.service
+```
+
+- Check that /etc/tigervnc/vncserver.users has :<DISPLAY>=$USER.
+
+- If using the per-user unit, ensure you’ve logged in (or switched After= to default.target).
+
+- Verify port with ss -tlnp | grep 5903.
+
+### E4. Test OpenVPN
+
+1. On your client, import and connect with client1.ovpn.
+
+2. Wait for “Initialization Sequence Completed.”
+
+3. Ping the server’s VPN IP:
+
+```bash
+ping 10.8.0.1
+```
+
+4. Once online, re-test RDP/VNC over the VPN IP (10.8.0.1:3389 or :5903).
+
+If it fails:
+
+- On the server, inspect:
+
+```bash
+sudo journalctl -u openvpn-server@server -n 20
+```
+
+- Ensure openvpn-server@server.service is running.
+
+- Check firewall rules:
+
+```bash
+firewall-cmd --list-all
+```
+
+- Verify DuckDNS is updating:
+
+```bash
+cat /etc/duckdns/duck.log
+```
+
+- From an external network, test port-forward:
+
+```bash
+Test-NetConnection -ComputerName myvpn.duckdns.org -Port 1194
+```
+---
+
+## Common Pitfalls & Solutions
+
+| Issue                                    | Symptoms                                    | Fix                                                                                    |                                                                        |
+| ---------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **XRDP not listening**                   | RDP client times out                        | `sudo systemctl restart xrdp`; check `ss -tlnp`; adjust `firewall-cmd` for port 3389.  |                                                                        |
+| **VNC “No user configured for display”** | Service fails with “No user…\:N” in journal | \`echo "\:N=\$USER"                                                                    | sudo tee /etc/tigervnc/vncserver.users\`; set VNC password & xstartup. |
+| **VNC starts only after logout/login**   | Per-user unit doesn’t start immediately     | Use system-wide `vncserver@.service` or change `After=` to `default.target`.           |                                                                        |
+| **OpenVPN config file errors**           | `Error opening configuration file`          | Ensure `/etc/openvpn/server/` subdir and absolute paths in `server.conf`.              |                                                                        |
+| **OpenVPN won’t bind UDP/1194**          | Service exit code 1                         | Check `ss -u -lnp`; `journalctl -u openvpn…`; confirm firewall-cmd for `openvpn`.      |                                                                        |
+| **DuckDNS not updating**                 | External DNS still old IP                   | Inspect `/etc/duckdns/duck.log`; run the script manually; verify cron file syntax.     |                                                                        |
+| **SELinux denials on certs or scripts**  | AVC errors in `audit.log`                   | `sudo restorecon -Rv /etc/openvpn /home/$USER/.vnc`; or generate a local policy.       |                                                                        |
+| **Locked out of SSH after hardening**    | Cannot connect over SSH                     | Use console/serial; revert `PermitRootLogin` or port change in `/etc/ssh/sshd_config`. |                                                                        |
 
 ---
