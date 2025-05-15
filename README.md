@@ -12,7 +12,8 @@ Step-by-step guide to install and configure XRDP, TigerVNC &amp; OpenVPN on Rock
 - [Step C: OpenVPN Server](#step-c-openvpn-server)  
 - [Step D: Generate Client Profile](#step-d-generate-client-profile)  
 - [Step E: Testing & Troubleshooting](#step-e-testing--troubleshooting)  
-- [Common Pitfalls & Solutions](#common-pitfalls--solutions)  
+- [Common Pitfalls & Solutions](#common-pitfalls--solutions)
+- [References](#references)
 
 ---
 
@@ -625,5 +626,11 @@ Test-NetConnection -ComputerName myvpn.duckdns.org -Port 1194
 | **OpenVPN won’t bind**  | Service exit code 1            | <pre>ss -u -lnp &#124; grep 1194<br>journalctl -u openvpn-server@server -n 20<br>sudo firewall-cmd --add-service=openvpn --reload</pre>                                            |
 | **DuckDNS not updating**| DNS still shows old IP         | <pre>cat /etc/duckdns/duck.log<br>/etc/duckdns/duck.sh</pre><br>Check your `/etc/cron.d/duckdns` syntax.                                                                          |
 | **Locked out of SSH**   | Cannot connect over SSH        | Use console access to revert changes in `/etc/ssh/sshd_config` (example: `PermitRootLogin no`, custom port).<br>Then `sudo systemctl restart sshd`.                                 |
+
+---
+
+## References
+
+- **Joseph Brinkmann** (Nov 5, 2024). “Security Guide: OpenVPN.” *Rocky Linux Documentation*. Retrieved May 3, 2025, from https://docs.rockylinux.org/guides/security/openvpn/
 
 ---
