@@ -618,7 +618,7 @@ Test-NetConnection -ComputerName myvpn.duckdns.org -Port 1194
 ## Common Pitfalls & Solutions
 
 
-ssue                       | Symptoms                          | Fix                                                                                                                                                             |
+Issue                       | Symptoms                          | Fix                                                                                                                                                             |
 |-----------------------------|-----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **XRDP not listening**      | RDP client times out              | `sudo systemctl restart xrdp`<br>`ss -tlnp \| grep 3389`<br>`sudo firewall-cmd --add-service=rdp --reload`                                                     |
 | **VNC “No user configured”**| Service fails with “No user…:N”   | `echo ":N=$USER" \| sudo tee /etc/tigervnc/vncserver.users`<br>`vncpasswd`                                                                                        |
