@@ -489,48 +489,40 @@ On the client machine:
 
 1. Install the OpenVPN Windows Client
 
-  Download and install the official OpenVPN GUI for Windows from:
-  https://openvpn.net/community-downloads/
+   Download and install the official OpenVPN GUI for Windows from:  
+   https://openvpn.net/community-downloads/
 
-2. Copy Your .ovpn Profile to Windows
+2. Copy Your `.ovpn` Profile to Windows
 
-  - Transfer client1.ovpn (the file you generated under ~/client-configs/files/)  to your Windows machine.
-
-  - Place it in the OpenVPN config folder, typically:
-
-```
-C:\Program Files\OpenVPN\config\
-```
+   - Transfer `client1.ovpn` (the file you generated under `~/client-configs/files/`) to your Windows machine.  
+   - Place it in the OpenVPN config folder, typically:  
+     ```text
+     C:\Program Files\OpenVPN\config\
+     ```
 
 3. Run the OpenVPN GUI
 
-  - Launch OpenVPN GUI as Administrator (right-click → “Run as administrator”).
-
-  - In the system tray, right-click the OpenVPN icon and select Connect on your   client1 profile.
+   - Launch OpenVPN GUI as Administrator (right-click → “Run as administrator”).  
+   - In the system tray, right-click the OpenVPN icon and select **Connect** on your `client1` profile.
 
 4. Authenticate & Verify
 
-  - If prompted, accept any certificate warnings.
-
-  - Watch the status window—once it shows Initialization Sequence Completed, you  ’re in.
+   - If prompted, accept any certificate warnings.  
+   - Watch the status window—once it shows **Initialization Sequence Completed**, you’re in.
 
 5. Verify VPN Connectivity
 
-  - Open PowerShell or Command Prompt and run:
-
-```bash
-ping 10.8.0.1
-```
-
-  - You should see replies from 10.8.0.1.
+   - Open PowerShell or Command Prompt and run:
+     ```bash
+     ping 10.8.0.1
+     ```
+   - You should see replies from `10.8.0.1`.
 
 6. Test RDP/VNC Over VPN
 
-  - In your RDP client (mstsc), connect to 10.8.0.1:3389
-
-  - In your VNC viewer, connect to 10.8.0.1:5903 (if DISPLAY=3)
-
-  - Both should now work over the encrypted VPN tunnel.
+   - In your RDP client (`mstsc`), connect to `10.8.0.1:3389`  
+   - In your VNC viewer, connect to `10.8.0.1:5903` (if `DISPLAY=3`)  
+   - Both should now work over the encrypted VPN tunnel.
 
 ---
 
